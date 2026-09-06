@@ -2,11 +2,18 @@ version: 0.4
 name: memtier_benchmark-1key-zset-1M-elements-zlexcount-pipeline-10
 description: 'Runs memtier_benchmark, for a keyspace length of 1 SORTED SET key. The SORTED SET contains
   exactly 1,000,000 elements (integer members 1..1,000,000, constant score of 1 -- reuses the 1key-zset-1M-elements-const-score
-  dataset) and we count the full lex domain using ZLEXCOUNT - +, pipelined 10-deep. ZLEXCOUNT is the count-only
-  sibling of ZRANGEBYLEX: it resolves both sentinels through zslParseLexRange and walks the same lex-ordered
-  iteration path but never materialises element replies (no sds allocation/copy per element), so pairing
-  it with the zrangebylex-100-elements spec isolates reply-materialisation cost from pure lex traversal
-  cost at scale. Verified live: ZLEXCOUNT - + equals ZCARD (1,000,000 on the full dataset). Encoding:
+  dataset) and we count the full lex domain using ZLEXCOUNT lb - +, pipelined 10-deep. What this actually
+  exercises: at skiplist encoding ZLEXCOUNT does NOT iterate elements -- zlexcountCommand resolves the
+  two endpoints with zslNthInLexRange (nth=0 for the first, nth=-1 for the last, each an O(log N) lex
+  seek that also yields its rank) and derives the count by rank arithmetic (count = length-(rank_first-1),
+  then -= (length-rank_last)), matching the O(log(N)) complexity recorded in commands.json. Only the listpack
+  branch iterates per element; this spec is at 1M (skiplist), so the covered path is zslParseLexRange
+  on the -/+ sentinels plus both *InLexRange seeks and the zslGetRank descents, not a traversal -- it
+  is therefore NOT a count-only counterpart that isolates reply-materialisation from the zrangebylex-random-position
+  slice (that one is O(log N + M) seek+traverse, this is O(log N) rank-only). Because the command is that
+  cheap, at -c 1 -t 1 --pipeline 10 a good share of the recorded Ops/sec is dispatch/protocol overhead
+  rather than server-side lex work; the spec is still worth having as real coverage of the lex-range parse
+  + rank-count path. Verified live: ZLEXCOUNT - + equals ZCARD (1,000,000 on the full dataset). Encoding:
   skiplist+hashtable (1,000,000 elements, exceeds zset-max-listpack-entries 128). Metric of interest:
   Ops/sec.'
 dbconfig:
