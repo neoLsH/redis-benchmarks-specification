@@ -13,7 +13,7 @@ dbconfig:
     run_image: redislabs/memtier_benchmark:edge
     tool: memtier_benchmark
     arguments: --command "SADD test_sadd100 member:__key__" --command-key-pattern P --key-prefix "" --key-minimum
-      1 --key-maximum 100 -n allkeys -c 1 -t 1 --hide-histogram --pipeline 50
+      1 --key-maximum 101 -n allkeys -c 1 -t 1 --hide-histogram --pipeline 50
   resources:
     requests:
       memory: 2g
